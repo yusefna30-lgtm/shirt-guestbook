@@ -8,6 +8,8 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+  <!-- HTML2Canvas لتحويل بطاقة الستوري لصورة قابلة للحفظ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <style>
     :root {
@@ -41,6 +43,34 @@
     .btn-sign { width: 100%; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #000; border: none; padding: 13px; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .btn-sign:active { transform: scale(0.98); }
 
+    /* بطاقة الستوري المنبثقة */
+    .story-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); z-index: 1000; justify-content: center; align-items: center; padding: 20px; overflow-y: auto; }
+    .story-card-wrapper { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 320px; width: 100%; }
+    
+    .story-card {
+      width: 100%;
+      background: radial-gradient(circle at top, #1a1e26 0%, #08090b 100%);
+      border: 2px solid var(--gold);
+      border-radius: 20px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 14px;
+      box-shadow: 0 10px 30px rgba(212, 175, 55, 0.15);
+    }
+    .story-tag { font-size: 0.7rem; color: var(--gold); letter-spacing: 2px; border-bottom: 1px solid rgba(212, 175, 55, 0.4); padding-bottom: 4px; }
+    .story-title { font-size: 1.1rem; color: #fff; font-weight: 700; line-height: 1.4; }
+    .story-name { font-size: 1.3rem; color: var(--gold); font-weight: bold; margin-top: 4px; }
+    .story-sig-img { width: 90%; max-height: 110px; object-fit: contain; filter: drop-shadow(0 2px 8px rgba(212, 175, 55, 0.3)); }
+    .story-msg { font-size: 0.85rem; color: #e1e4e8; font-style: italic; background: rgba(255,255,255,0.04); padding: 8px 12px; border-radius: 8px; width: 100%; }
+    .story-footer { font-size: 0.7rem; color: var(--muted); border-top: 1px dashed #2d333b; width: 100%; padding-top: 10px; }
+
+    .btn-download-story { background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #000; border: none; padding: 12px 20px; border-radius: 10px; font-weight: bold; font-size: 0.9rem; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-close-modal { background: none; border: 1px solid var(--border); color: var(--muted); padding: 8px 16px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; }
+
+    /* قائمة التواقيع الحالية */
     .entries-list { display: flex; flex-direction: column; gap: 14px; }
     .entry-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
     .entry-header { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -49,15 +79,11 @@
     .entry-message { font-size: 0.9rem; color: #f0f0f0; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; }
     .entry-signature-img { width: 100%; max-height: 120px; object-fit: contain; background: #080a0d; border-radius: 6px; padding: 4px; border: 1px solid rgba(212, 175, 55, 0.2); }
     
-    /* زر الحذف المخصص للمالك */
     .btn-delete-entry { display: none; background: rgba(230, 57, 70, 0.15); border: 1px solid var(--danger); color: var(--danger); padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; align-self: flex-end; }
-    .btn-delete-entry:hover { background: var(--danger); color: #fff; }
 
-    /* فوتر وضع المالك */
     footer { text-align: center; margin-top: 15px; padding-bottom: 25px; }
     .admin-toggle { background: none; border: none; color: #444c56; font-size: 0.75rem; cursor: pointer; }
     .admin-toggle:hover { color: var(--gold); }
-
     .empty-state { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 25px; }
   </style>
 </head>
@@ -65,9 +91,9 @@
 
 <div class="container">
   <header>
-    <div class="badge">LIVE CLOUD EDITION</div>
+    <div class="badge">NFC INTERACTIVE SHIRT</div>
     <h1>دفتر زوار التيشيرت</h1>
-    <p class="sub">اترك أثرك وتوقيعك في ذاكرة هذا القميص لحظياً</p>
+    <p class="sub">اترك أثرك وتوقيعك في ذاكرة هذا التيشيرت لحظياً</p>
   </header>
 
   <div class="guestbook-box">
@@ -89,7 +115,7 @@
   </div>
 
   <div>
-    <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--gold);">بصمات الأصدقاء والملهمين</h3>
+    <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--gold);">بصمات الأصدقاء والملهمين (محدثة لحظياً)</h3>
     <div class="entries-list" id="entriesContainer">
       <div class="empty-state">جاري الاتصال بالسحابة لجلب التواقيع...</div>
     </div>
@@ -97,7 +123,28 @@
 
   <footer>
     <button class="admin-toggle" id="adminToggleBtn" onclick="toggleAdminMode()">🔒 وضع المالك (إدارة التواقيع)</button>
+    <div id="clearAllContainer" style="display: none; margin-top: 10px;">
+      <button style="background: rgba(230, 57, 70, 0.2); border: 1px solid var(--danger); color: var(--danger); padding: 8px 14px; border-radius: 8px; font-size: 0.8rem; cursor: pointer;" onclick="clearAllSignatures()">⚠️ مسح جميع التواقيع وتصفير السجل</button>
+    </div>
   </footer>
+</div>
+
+<!-- نافذة بطاقة الستوري التذكارية المنبثقة -->
+<div class="story-modal" id="storyModal">
+  <div class="story-card-wrapper">
+    <div class="story-card" id="storyCard">
+      <div class="story-tag">SMART APPAREL MEMORY</div>
+      <div class="story-title">تركتُ أثري اليوم على تيشيرت ذكي</div>
+      <div class="story-name" id="modalName">اسم الزائر</div>
+      <img src="" id="modalSig" class="story-sig-img" alt="التوقيع" />
+      <div class="story-msg" id="modalMsg" style="display: none;"></div>
+      <div class="story-footer">
+        <span id="modalDate"></span> • موثّق بتقنية NFC التفاعلية
+      </div>
+    </div>
+    <button class="btn-download-story" onclick="downloadStoryCard()">📸 حفظ بطاقة الذكرى للستوري</button>
+    <button class="btn-close-modal" onclick="closeStoryModal()">إغلاق ومتابعة</button>
+  </div>
 </div>
 
 <script>
@@ -116,8 +163,7 @@
   const db = firebase.database();
   const guestbookRef = db.ref('signatures');
 
-  // إعدادات وضع المالك
-  const ADMIN_PIN = "1234"; // يمكنك تعديل الرقم السري هنا
+  const ADMIN_PIN = "1234";
   let isAdmin = false;
 
   const canvas = document.getElementById('signaturePad');
@@ -180,6 +226,7 @@
     hasSigned = false;
   }
 
+  // حفظ التوقيع وفتح بطاقة الستوري
   function saveSignature() {
     const name = document.getElementById('signerName').value.trim();
     const msg = document.getElementById('signerMsg').value.trim();
@@ -202,13 +249,14 @@
     submitBtn.innerText = "جاري الحفظ في السحابة...";
 
     const signatureImage = canvas.toDataURL('image/png');
+    const currentDate = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
 
     const newEntry = {
       name: name,
       message: msg,
       signature: signatureImage,
       timestamp: Date.now(),
-      date: new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })
+      date: currentDate
     };
 
     guestbookRef.push(newEntry).then(() => {
@@ -217,8 +265,10 @@
       clearPad();
       submitBtn.disabled = false;
       submitBtn.innerText = "✨ حفظ التوقيع سحابياً في التيشيرت";
-      alertBox.style.display = 'block';
-      alertBox.innerText = `تم حفظ بصمة ${name} سحابياً بنجاح! 🖤✨`;
+      alertBox.style.display = 'none';
+
+      // عرض نافذة بطاقة الستوري التذكارية
+      showStoryModal(name, msg, signatureImage, currentDate);
     }).catch(err => {
       submitBtn.disabled = false;
       submitBtn.innerText = "✨ حفظ التوقيع سحابياً في التيشيرت";
@@ -227,20 +277,61 @@
     });
   }
 
-  // حذف توقيع معين سحابياً للمالك
+  function showStoryModal(name, msg, sigImg, date) {
+    document.getElementById('modalName').innerText = name;
+    document.getElementById('modalSig').src = sigImg;
+    document.getElementById('modalDate').innerText = date;
+    
+    const msgBox = document.getElementById('modalMsg');
+    if (msg) {
+      msgBox.innerText = `« ${msg} »`;
+      msgBox.style.display = 'block';
+    } else {
+      msgBox.style.display = 'none';
+    }
+
+    document.getElementById('storyModal').style.display = 'flex';
+  }
+
+  function closeStoryModal() {
+    document.getElementById('storyModal').style.display = 'none';
+  }
+
+  // تنزيل كرت الستوري كصورة عالية الدقة للألبوم
+  function downloadStoryCard() {
+    const card = document.getElementById('storyCard');
+    html2canvas(card, {
+      backgroundColor: null,
+      scale: 3 // جودة عالية
+    }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = `Shirt-Guestbook-Memory.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  }
+
   function deleteSignature(signatureKey) {
-    if (confirm("هل أنت متأكد من رغبتك في حذف هذا التوقيع نهائياً من التيشيرت؟")) {
+    if (confirm("هل تريد حذف هذا التوقيع سحابياً؟")) {
       guestbookRef.child(signatureKey).remove();
     }
   }
 
-  // تفعيل / تعطيل وضع المالك
+  function clearAllSignatures() {
+    if (confirm("تحذير: هل أنت متأكد من مسح جميع التواقيع نهائياً من التيشيرت؟")) {
+      guestbookRef.remove().then(() => {
+        alert("تم تصفير دفتر الزوار بنجاح!");
+      });
+    }
+  }
+
   function toggleAdminMode() {
     if (!isAdmin) {
       const pin = prompt("أدخل الرمز السري لإدارة التواقيع:");
       if (pin === ADMIN_PIN) {
         isAdmin = true;
         document.getElementById('adminToggleBtn').innerText = "🔓 وضع المالك مفعّل (اضغط للإغلاق)";
+        document.getElementById('clearAllContainer').style.display = 'block';
         document.querySelectorAll('.btn-delete-entry').forEach(btn => btn.style.display = 'block');
       } else if (pin !== null) {
         alert("الرمز السري غير صحيح!");
@@ -248,11 +339,12 @@
     } else {
       isAdmin = false;
       document.getElementById('adminToggleBtn').innerText = "🔒 وضع المالك (إدارة التواقيع)";
+      document.getElementById('clearAllContainer').style.display = 'none';
       document.querySelectorAll('.btn-delete-entry').forEach(btn => btn.style.display = 'none');
     }
   }
 
-  // الاستماع المباشر للتواقيع سحابياً
+  // الاستماع اللحظي للتواقيع
   guestbookRef.on('value', (snapshot) => {
     const container = document.getElementById('entriesContainer');
     container.innerHTML = "";
