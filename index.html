@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>The Guestbook Shirt | دفتر أثر التيشيرت</title>
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --card: #161a20;
+      --gold: #d4af37;
+      --gold-dark: #aa820a;
+      --text: #ffffff;
+      --muted: #8b949e;
+      --border: #2d333b;
+      --danger: #e63946;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 18px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .container { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 16px; }
+
+    header { text-align: center; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
+    .badge { display: inline-block; padding: 4px 14px; border: 1px solid var(--gold); border-radius: 20px; color: var(--gold); font-size: 0.75rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; }
+    h1 { font-size: 1.4rem; color: var(--text); }
+    p.sub { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+    /* صندوق توقيع الضيف */
+    .guestbook-box { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    .input-field { width: 100%; background: #0d0f12; border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 11px; font-size: 0.85rem; }
+    .input-field:focus { outline: none; border-color: var(--gold); }
+
+    /* لوحة التوقيع باللمس */
+    .pad-container { display: flex; flex-direction: column; gap: 6px; }
+    .pad-label { font-size: 0.8rem; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
+    .btn-clear { background: none; border: none; color: var(--muted); font-size: 0.75rem; cursor: pointer; text-decoration: underline; }
+    #signaturePad { width: 100%; height: 160px; background: #050608; border: 1px dashed var(--gold); border-radius: 8px; touch-action: none; cursor: crosshair; }
+
+    .btn-sign { width: 100%; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #000; border: none; padding: 13px; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-sign:active { transform: scale(0.98); }
+
+    /* بطاقات بصمات الأصدقاء */
+    .entries-list { display: flex; flex-direction: column; gap: 14px; }
+    .entry-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; position: relative; }
+    .entry-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .entry-name { font-weight: bold; font-size: 1.1rem; color: var(--gold); }
+    .entry-date { font-size: 0.75rem; color: var(--muted); }
+    .entry-message { font-size: 0.9rem; color: #f0f0f0; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; }
+    .entry-signature-img { width: 100%; max-height: 110px; object-fit: contain; background: #080a0d; border-radius: 6px; padding: 4px; border: 1px solid rgba(212, 175, 55, 0.2); }
+    
+    .btn-delete { background: none; border: none; color: var(--muted); font-size: 0.75rem; cursor: pointer; align-self: flex-end; padding-top: 4px; }
+    .btn-delete:hover { color: var(--danger); }
+    .empty-state { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 25px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="badge">NFC GUESTBOOK EDITION</div>
+    <h1>دفتر زوار التيشيرت</h1>
+    <p class="sub">اترك أثرك وتوقيعك في ذاكرة هذا القميص</p>
+  </header>
+
+  <div class="guestbook-box">
+    <input type="text" id="signerName" class="input-field" placeholder="اسمك الكريم أو لقبك..." required />
+    <textarea id="signerMsg" class="input-field" rows="2" placeholder="كلمة تذكارية أو إهداء قصير..."></textarea>
+    
+    <div class="pad-container">
+      <div class="pad-label">
+        <span>✍️ ارسم توقيعك أو بصمتك هنا بإصبعك:</span>
+        <button class="btn-clear" onclick="clearPad()">مسح وإعادة ↺</button>
+      </div>
+      <canvas id="signaturePad"></canvas>
+    </div>
+
+    <button class="btn-sign" onclick="saveSignature()">
+      ✨ حفظ التوقيع في التيشيرت
+    </button>
+    <p id="alertMsg" style="font-size: 0.8rem; color: var(--gold); text-align: center; display: none;"></p>
+  </div>
+
+  <div>
+    <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--gold);">بصمات الأصدقاء والملهمين</h3>
+    <div class="entries-list" id="entriesContainer">
+      <div class="empty-state">لا توجد بصمات مسجلة بعد. كن أول من يوقع!</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('signaturePad');
+  const ctx = canvas.getContext('2d');
+  let isDrawing = false;
+  let hasSigned = false;
+  let guestEntries = JSON.parse(localStorage.getItem('shirt_guestbook_entries') || '[]');
+
+  // ضبط أبعاد اللوحة حسب حجم الشاشة
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * 2;
+    canvas.height = rect.height * 2;
+    ctx.scale(2, 2);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#d4af37'; // حبر التوقيع باللون الذهبي
+  }
+
+  // أحداث الرسم باللمس والفأرة
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top
+    };
+  }
+
+  function startDraw(e) {
+    isDrawing = true;
+    hasSigned = true;
+    const pos = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    if (e.cancelable && e.type.startsWith('touch')) e.preventDefault();
+  }
+
+  function draw(e) {
+    if (!isDrawing) return;
+    const pos = getPos(e);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    if (e.cancelable && e.type.startsWith('touch')) e.preventDefault();
+  }
+
+  function stopDraw() {
+    isDrawing = false;
+  }
+
+  canvas.addEventListener('mousedown', startDraw);
+  canvas.addEventListener('mousemove', draw);
+  window.addEventListener('mouseup', stopDraw);
+
+  canvas.addEventListener('touchstart', startDraw, { passive: false });
+  canvas.addEventListener('touchmove', draw, { passive: false });
+  canvas.addEventListener('touchend', stopDraw);
+
+  function clearPad() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasSigned = false;
+  }
+
+  // حفظ التوقيع والرسالة
+  function saveSignature() {
+    const name = document.getElementById('signerName').value.trim();
+    const msg = document.getElementById('signerMsg').value.trim();
+    const alertBox = document.getElementById('alertMsg');
+
+    if (!name) {
+      alertBox.style.display = 'block';
+      alertBox.innerText = "يرجى كتابة الاسم أولاً.";
+      return;
+    }
+
+    if (!hasSigned) {
+      alertBox.style.display = 'block';
+      alertBox.innerText = "يرجى رسم التوقيع داخل المربع.";
+      return;
+    }
+
+    const signatureImage = canvas.toDataURL('image/png');
+
+    const entry = {
+      id: Date.now(),
+      name: name,
+      message: msg,
+      signature: signatureImage,
+      date: new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })
+    };
+
+    guestEntries.unshift(entry);
+    localStorage.setItem('shirt_guestbook_entries', JSON.stringify(guestEntries));
+
+    // إعادة الضبط
+    document.getElementById('signerName').value = "";
+    document.getElementById('signerMsg').value = "";
+    clearPad();
+
+    alertBox.style.display = 'block';
+    alertBox.innerText = `تم حفظ بصمة ${name} في التيشيرت بنجاح! 🖤✨`;
+    renderEntries();
+  }
+
+  function deleteEntry(id) {
+    guestEntries = guestEntries.filter(item => item.id !== id);
+    localStorage.setItem('shirt_guestbook_entries', JSON.stringify(guestEntries));
+    renderEntries();
+  }
+
+  function renderEntries() {
+    const container = document.getElementById('entriesContainer');
+    container.innerHTML = "";
+
+    if (guestEntries.length === 0) {
+      container.innerHTML = `<div class="empty-state">لا توجد بصمات مسجلة بعد. كن أول من يوقع!</div>`;
+      return;
+    }
+
+    guestEntries.forEach(item => {
+      const card = document.createElement('div');
+      card.className = "entry-card";
+      card.innerHTML = `
+        <div class="entry-header">
+          <div class="entry-name">✍️ ${item.name}</div>
+          <div class="entry-date">${item.date}</div>
+        </div>
+        ${item.message ? `<div class="entry-message">${item.message}</div>` : ''}
+        <img src="${item.signature}" class="entry-signature-img" alt="توقيع ${item.name}" />
+        <button class="btn-delete" onclick="deleteEntry(${item.id})">حذف التوقيع ✕</button>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  window.onload = () => {
+    resizeCanvas();
+    renderEntries();
+  };
+</script>
+</body>
+</html>
