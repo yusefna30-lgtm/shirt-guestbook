@@ -49,6 +49,15 @@
     .entry-message { font-size: 0.9rem; color: #f0f0f0; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; }
     .entry-signature-img { width: 100%; max-height: 120px; object-fit: contain; background: #080a0d; border-radius: 6px; padding: 4px; border: 1px solid rgba(212, 175, 55, 0.2); }
     
+    /* زر الحذف المخصص للمالك */
+    .btn-delete-entry { display: none; background: rgba(230, 57, 70, 0.15); border: 1px solid var(--danger); color: var(--danger); padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; align-self: flex-end; }
+    .btn-delete-entry:hover { background: var(--danger); color: #fff; }
+
+    /* فوتر وضع المالك */
+    footer { text-align: center; margin-top: 15px; padding-bottom: 25px; }
+    .admin-toggle { background: none; border: none; color: #444c56; font-size: 0.75rem; cursor: pointer; }
+    .admin-toggle:hover { color: var(--gold); }
+
     .empty-state { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 25px; }
   </style>
 </head>
@@ -80,15 +89,19 @@
   </div>
 
   <div>
-    <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--gold);">بصمات الأصدقاء والملهمين (محدثة لحظياً)</h3>
+    <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--gold);">بصمات الأصدقاء والملهمين</h3>
     <div class="entries-list" id="entriesContainer">
       <div class="empty-state">جاري الاتصال بالسحابة لجلب التواقيع...</div>
     </div>
   </div>
+
+  <footer>
+    <button class="admin-toggle" id="adminToggleBtn" onclick="toggleAdminMode()">🔒 وضع المالك (إدارة التواقيع)</button>
+  </footer>
 </div>
 
 <script>
-  // تهيئة Firebase بمفاتيح مشروعك المباشرة
+  // تهيئة Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyCRCmrFxGrLPD1Z_ajnG3Hltp8qykjY0H8",
     authDomain: "shirt-guestbook.firebaseapp.com",
@@ -102,6 +115,10 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
   const guestbookRef = db.ref('signatures');
+
+  // إعدادات وضع المالك
+  const ADMIN_PIN = "1234"; // يمكنك تعديل الرقم السري هنا
+  let isAdmin = false;
 
   const canvas = document.getElementById('signaturePad');
   const ctx = canvas.getContext('2d');
@@ -206,11 +223,36 @@
       submitBtn.disabled = false;
       submitBtn.innerText = "✨ حفظ التوقيع سحابياً في التيشيرت";
       alertBox.style.display = 'block';
-      alertBox.innerText = "حدث خطأ أثناء الاتصال بالسحابة. تأكد من تفعيل Realtime Database.";
+      alertBox.innerText = "حدث خطأ أثناء الاتصال بالسحابة.";
     });
   }
 
-  // مزامنة التواقيع في الوقت الفعلي بين كل الأجهزة
+  // حذف توقيع معين سحابياً للمالك
+  function deleteSignature(signatureKey) {
+    if (confirm("هل أنت متأكد من رغبتك في حذف هذا التوقيع نهائياً من التيشيرت؟")) {
+      guestbookRef.child(signatureKey).remove();
+    }
+  }
+
+  // تفعيل / تعطيل وضع المالك
+  function toggleAdminMode() {
+    if (!isAdmin) {
+      const pin = prompt("أدخل الرمز السري لإدارة التواقيع:");
+      if (pin === ADMIN_PIN) {
+        isAdmin = true;
+        document.getElementById('adminToggleBtn').innerText = "🔓 وضع المالك مفعّل (اضغط للإغلاق)";
+        document.querySelectorAll('.btn-delete-entry').forEach(btn => btn.style.display = 'block');
+      } else if (pin !== null) {
+        alert("الرمز السري غير صحيح!");
+      }
+    } else {
+      isAdmin = false;
+      document.getElementById('adminToggleBtn').innerText = "🔒 وضع المالك (إدارة التواقيع)";
+      document.querySelectorAll('.btn-delete-entry').forEach(btn => btn.style.display = 'none');
+    }
+  }
+
+  // الاستماع المباشر للتواقيع سحابياً
   guestbookRef.on('value', (snapshot) => {
     const container = document.getElementById('entriesContainer');
     container.innerHTML = "";
@@ -221,9 +263,10 @@
       return;
     }
 
-    const entries = Object.values(data).reverse();
+    const keys = Object.keys(data).reverse();
 
-    entries.forEach(item => {
+    keys.forEach(key => {
+      const item = data[key];
       const card = document.createElement('div');
       card.className = "entry-card";
       card.innerHTML = `
@@ -233,6 +276,7 @@
         </div>
         ${item.message ? `<div class="entry-message">${item.message}</div>` : ''}
         <img src="${item.signature}" class="entry-signature-img" alt="توقيع ${item.name}" />
+        <button class="btn-delete-entry" style="display: ${isAdmin ? 'block' : 'none'};" onclick="deleteSignature('${key}')">حذف هذا التوقيع سحابياً ✕</button>
       `;
       container.appendChild(card);
     });
