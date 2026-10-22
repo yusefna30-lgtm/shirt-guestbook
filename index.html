@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>The Guestbook Shirt | دفتر أثر التيشيرت</title>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
   <style>
     :root {
       --bg: #0d0f12;
@@ -24,12 +29,10 @@
     h1 { font-size: 1.4rem; color: var(--text); }
     p.sub { font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
 
-    /* صندوق توقيع الضيف */
     .guestbook-box { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
     .input-field { width: 100%; background: #0d0f12; border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 11px; font-size: 0.85rem; }
     .input-field:focus { outline: none; border-color: var(--gold); }
 
-    /* لوحة التوقيع باللمس */
     .pad-container { display: flex; flex-direction: column; gap: 6px; }
     .pad-label { font-size: 0.8rem; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
     .btn-clear { background: none; border: none; color: var(--muted); font-size: 0.75rem; cursor: pointer; text-decoration: underline; }
@@ -38,17 +41,14 @@
     .btn-sign { width: 100%; background: linear-gradient(135deg, var(--gold), var(--gold-dark)); color: #000; border: none; padding: 13px; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
     .btn-sign:active { transform: scale(0.98); }
 
-    /* بطاقات بصمات الأصدقاء */
     .entries-list { display: flex; flex-direction: column; gap: 14px; }
-    .entry-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; position: relative; }
+    .entry-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
     .entry-header { display: flex; justify-content: space-between; align-items: flex-start; }
     .entry-name { font-weight: bold; font-size: 1.1rem; color: var(--gold); }
     .entry-date { font-size: 0.75rem; color: var(--muted); }
     .entry-message { font-size: 0.9rem; color: #f0f0f0; line-height: 1.4; background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 6px; }
-    .entry-signature-img { width: 100%; max-height: 110px; object-fit: contain; background: #080a0d; border-radius: 6px; padding: 4px; border: 1px solid rgba(212, 175, 55, 0.2); }
+    .entry-signature-img { width: 100%; max-height: 120px; object-fit: contain; background: #080a0d; border-radius: 6px; padding: 4px; border: 1px solid rgba(212, 175, 55, 0.2); }
     
-    .btn-delete { background: none; border: none; color: var(--muted); font-size: 0.75rem; cursor: pointer; align-self: flex-end; padding-top: 4px; }
-    .btn-delete:hover { color: var(--danger); }
     .empty-state { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 25px; }
   </style>
 </head>
@@ -56,9 +56,9 @@
 
 <div class="container">
   <header>
-    <div class="badge">NFC GUESTBOOK EDITION</div>
+    <div class="badge">LIVE CLOUD EDITION</div>
     <h1>دفتر زوار التيشيرت</h1>
-    <p class="sub">اترك أثرك وتوقيعك في ذاكرة هذا القميص</p>
+    <p class="sub">اترك أثرك وتوقيعك في ذاكرة هذا القميص لحظياً</p>
   </header>
 
   <div class="guestbook-box">
@@ -73,28 +73,41 @@
       <canvas id="signaturePad"></canvas>
     </div>
 
-    <button class="btn-sign" onclick="saveSignature()">
-      ✨ حفظ التوقيع في التيشيرت
+    <button class="btn-sign" id="submitBtn" onclick="saveSignature()">
+      ✨ حفظ التوقيع سحابياً في التيشيرت
     </button>
     <p id="alertMsg" style="font-size: 0.8rem; color: var(--gold); text-align: center; display: none;"></p>
   </div>
 
   <div>
-    <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--gold);">بصمات الأصدقاء والملهمين</h3>
+    <h3 style="font-size: 1rem; margin-bottom: 12px; color: var(--gold);">بصمات الأصدقاء والملهمين (محدثة لحظياً)</h3>
     <div class="entries-list" id="entriesContainer">
-      <div class="empty-state">لا توجد بصمات مسجلة بعد. كن أول من يوقع!</div>
+      <div class="empty-state">جاري الاتصال بالسحابة لجلب التواقيع...</div>
     </div>
   </div>
 </div>
 
 <script>
+  // تهيئة Firebase بمفاتيح مشروعك المباشرة
+  const firebaseConfig = {
+    apiKey: "AIzaSyCRCmrFxGrLPD1Z_ajnG3Hltp8qykjY0H8",
+    authDomain: "shirt-guestbook.firebaseapp.com",
+    databaseURL: "https://shirt-guestbook-default-rtdb.firebaseio.com",
+    projectId: "shirt-guestbook",
+    storageBucket: "shirt-guestbook.firebasestorage.app",
+    messagingSenderId: "635447720731",
+    appId: "1:635447720731:web:9d8934f0cff39e960fb1be"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const guestbookRef = db.ref('signatures');
+
   const canvas = document.getElementById('signaturePad');
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
   let hasSigned = false;
-  let guestEntries = JSON.parse(localStorage.getItem('shirt_guestbook_entries') || '[]');
 
-  // ضبط أبعاد اللوحة حسب حجم الشاشة
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * 2;
@@ -103,10 +116,9 @@
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#d4af37'; // حبر التوقيع باللون الذهبي
+    ctx.strokeStyle = '#d4af37';
   }
 
-  // أحداث الرسم باللمس والفأرة
   function getPos(e) {
     const rect = canvas.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -151,11 +163,11 @@
     hasSigned = false;
   }
 
-  // حفظ التوقيع والرسالة
   function saveSignature() {
     const name = document.getElementById('signerName').value.trim();
     const msg = document.getElementById('signerMsg').value.trim();
     const alertBox = document.getElementById('alertMsg');
+    const submitBtn = document.getElementById('submitBtn');
 
     if (!name) {
       alertBox.style.display = 'block';
@@ -169,45 +181,49 @@
       return;
     }
 
+    submitBtn.disabled = true;
+    submitBtn.innerText = "جاري الحفظ في السحابة...";
+
     const signatureImage = canvas.toDataURL('image/png');
 
-    const entry = {
-      id: Date.now(),
+    const newEntry = {
       name: name,
       message: msg,
       signature: signatureImage,
+      timestamp: Date.now(),
       date: new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })
     };
 
-    guestEntries.unshift(entry);
-    localStorage.setItem('shirt_guestbook_entries', JSON.stringify(guestEntries));
-
-    // إعادة الضبط
-    document.getElementById('signerName').value = "";
-    document.getElementById('signerMsg').value = "";
-    clearPad();
-
-    alertBox.style.display = 'block';
-    alertBox.innerText = `تم حفظ بصمة ${name} في التيشيرت بنجاح! 🖤✨`;
-    renderEntries();
+    guestbookRef.push(newEntry).then(() => {
+      document.getElementById('signerName').value = "";
+      document.getElementById('signerMsg').value = "";
+      clearPad();
+      submitBtn.disabled = false;
+      submitBtn.innerText = "✨ حفظ التوقيع سحابياً في التيشيرت";
+      alertBox.style.display = 'block';
+      alertBox.innerText = `تم حفظ بصمة ${name} سحابياً بنجاح! 🖤✨`;
+    }).catch(err => {
+      submitBtn.disabled = false;
+      submitBtn.innerText = "✨ حفظ التوقيع سحابياً في التيشيرت";
+      alertBox.style.display = 'block';
+      alertBox.innerText = "حدث خطأ أثناء الاتصال بالسحابة. تأكد من تفعيل Realtime Database.";
+    });
   }
 
-  function deleteEntry(id) {
-    guestEntries = guestEntries.filter(item => item.id !== id);
-    localStorage.setItem('shirt_guestbook_entries', JSON.stringify(guestEntries));
-    renderEntries();
-  }
-
-  function renderEntries() {
+  // مزامنة التواقيع في الوقت الفعلي بين كل الأجهزة
+  guestbookRef.on('value', (snapshot) => {
     const container = document.getElementById('entriesContainer');
     container.innerHTML = "";
+    const data = snapshot.val();
 
-    if (guestEntries.length === 0) {
+    if (!data) {
       container.innerHTML = `<div class="empty-state">لا توجد بصمات مسجلة بعد. كن أول من يوقع!</div>`;
       return;
     }
 
-    guestEntries.forEach(item => {
+    const entries = Object.values(data).reverse();
+
+    entries.forEach(item => {
       const card = document.createElement('div');
       card.className = "entry-card";
       card.innerHTML = `
@@ -217,15 +233,13 @@
         </div>
         ${item.message ? `<div class="entry-message">${item.message}</div>` : ''}
         <img src="${item.signature}" class="entry-signature-img" alt="توقيع ${item.name}" />
-        <button class="btn-delete" onclick="deleteEntry(${item.id})">حذف التوقيع ✕</button>
       `;
       container.appendChild(card);
     });
-  }
+  });
 
   window.onload = () => {
     resizeCanvas();
-    renderEntries();
   };
 </script>
 </body>
